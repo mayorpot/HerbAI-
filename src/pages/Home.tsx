@@ -45,7 +45,7 @@ const Home: React.FC = () => {
   return (
     <div className="home-container">
       <section className="hero-section">
-        <h1 className="hero-title">Welcome to ALBA</h1>
+        <h1 className="hero-title">Welcome to HerbAI</h1>
         <p className="hero-subtitle">
           Your modern herbal medicine companion. Discover natural remedies, 
           identify medicinal plants, and consult with certified practitioners.

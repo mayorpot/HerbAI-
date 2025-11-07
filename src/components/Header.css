@@ -1,0 +1,36 @@
+/* src/components/Header.css */
+/* Hide desktop navigation and user section on mobile */
+@media (max-width: 768px) {
+  .nav-links-desktop {
+    display: none !important;
+  }
+  
+  .user-section-desktop {
+    display: none !important;
+  }
+  
+  .mobile-menu-button {
+    display: block !important;
+  }
+}
+
+/* Show mobile menu button only on mobile */
+@media (min-width: 769px) {
+  .mobile-menu-button {
+    display: none !important;
+  }
+  
+  .mobile-menu {
+    display: none !important;
+  }
+}
+
+/* Ensure mobile menu is hidden by default */
+.mobile-menu {
+  display: none;
+}
+
+/* Show mobile menu when open */
+.mobile-menu-button[data-open="true"] + .mobile-menu {
+  display: flex;
+}

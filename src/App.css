@@ -1,8 +1,28 @@
 /* src/App.css */
-* {
+  /* Remove all default margins and padding */
+*{
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #000000;
+}
+
+#root {
+  height: 100%;
+  background: #000000;
+}
+
+/* Ensure the login page takes full height */
+.page-container {
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
 }
 
 body {

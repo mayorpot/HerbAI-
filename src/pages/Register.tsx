@@ -121,7 +121,7 @@ const Register: React.FC = () => {
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🌿</div>
           <h1 className="page-title">Create Account</h1>
-          <p className="page-subtitle">Join ALBA and discover personalized herbal wellness</p>
+          <p className="page-subtitle">Join HerbAI and discover personalized herbal wellness</p>
         </div>
 
         {error && (

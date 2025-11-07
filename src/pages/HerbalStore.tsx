@@ -339,7 +339,7 @@ const HerbalStore: React.FC = () => {
 
             {/* Store Info */}
             <div style={{ background: '#F8F9FA', padding: '1.5rem', borderRadius: '12px', marginTop: '1rem' }}>
-              <h4 style={{ color: '#333333', marginBottom: '0.5rem' }}>🌟 Why Choose ALBA Herbs?</h4>
+              <h4 style={{ color: '#333333', marginBottom: '0.5rem' }}>🌟 Why Choose HerbAI Herbs?</h4>
               <ul style={{ color: '#666666', fontSize: '0.875rem', paddingLeft: '1rem', lineHeight: '1.5' }}>
                 <li>100% Organic & Natural</li>
                 <li>Third-Party Tested</li>

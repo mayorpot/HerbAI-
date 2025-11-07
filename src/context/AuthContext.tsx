@@ -6,6 +6,7 @@ interface User {
   id: string;
   name: string;
   email: string;
+  role: 'user' | 'admin' | 'moderator'; // Add this line
   healthProfile: {
     allergies: string[];
     medicalHistory: string[];

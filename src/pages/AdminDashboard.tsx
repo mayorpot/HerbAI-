@@ -168,7 +168,7 @@ const AdminDashboard: React.FC = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <h1 className="page-title">Admin Dashboard</h1>
-              <p className="page-subtitle">Manage ALBA system and monitor user activity</p>
+              <p className="page-subtitle">Manage HerbAI system and monitor user activity</p>
             </div>
             
             {/* Real-time updates panel */}

@@ -13,7 +13,7 @@ const HealthAssistant: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: "Hello! I'm ALBA, your AI natural health assistant. I can help you understand your symptoms and suggest herbal remedies. What's bothering you today?",
+      text: "Hello! I'm HerbAI, your AI natural health assistant. I can help you understand your symptoms and suggest herbal remedies. What's bothering you today?",
       sender: 'assistant',
       timestamp: new Date()
     }
@@ -96,7 +96,7 @@ const HealthAssistant: React.FC = () => {
     setMessages([
       {
         id: '1',
-        text: "Hello! I'm ALBA, your AI natural health assistant. I can help you understand your symptoms and suggest herbal remedies. What's bothering you today?",
+        text: "Hello! I'm HerbAI, your AI natural health assistant. I can help you understand your symptoms and suggest herbal remedies. What's bothering you today?",
         sender: 'assistant',
         timestamp: new Date()
       }
@@ -108,7 +108,7 @@ const HealthAssistant: React.FC = () => {
     <div className="page-container">
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <h1 className="page-title">ALBA AI Health Assistant</h1>
+          <h1 className="page-title">HerbAI Health Assistant</h1>
           <p className="page-subtitle">
             Powered by AI • Herbal Medicine Expert • Natural Solutions
           </p>
@@ -334,7 +334,7 @@ const HealthAssistant: React.FC = () => {
           marginTop: '1rem',
           textAlign: 'center'
         }}>
-          <strong>⚠️ Important Safety Information:</strong> ALBA provides herbal recommendations based on traditional knowledge. 
+          <strong>⚠️ Important Safety Information:</strong> HerbAI provides herbal recommendations based on traditional knowledge. 
           Always consult with a healthcare provider for proper diagnosis, especially for persistent or severe symptoms. 
           Discontinue use if any adverse reactions occur.
         </div>
