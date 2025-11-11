@@ -1,5 +1,5 @@
 // src/pages/Login.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -10,8 +10,18 @@ const Login: React.FC = () => {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -36,160 +46,245 @@ const Login: React.FC = () => {
     }
   };
 
+  const containerStyle = {
+    minHeight: '100vh',
+    display: 'flex',
+    flexDirection: isMobile ? 'column' : 'row' as 'column' | 'row',
+    background: 'white'
+  };
+
   return (
-    <div style={pageContainerStyles}>
-      <div style={cardStyles}>
-        {/* Header Section */}
-        <div style={headerStyles}>
-          <div style={logoStyles}>🌿</div>
-          <h1 style={titleStyles}>Welcome to HerbAI</h1>
-          <p style={subtitleStyles}>Sign in to your account</p>
-        </div>
-
-        {/* Error Alert */}
-        {error && (
-          <div style={errorStyles}>
-            <div style={errorIconStyles}>⚠️</div>
-            <div style={errorTextStyles}>{error}</div>
+    <div style={containerStyle}>
+      {/* Left Side - Brand Section */}
+      <div style={{
+        flex: 1,
+        background: 'linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%)',
+        color: 'white',
+        padding: isMobile ? '2rem 1.5rem' : '3rem',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        textAlign: 'center'
+      }}>
+        <div style={{ maxWidth: '500px' }}>
+          <div style={{ 
+            fontSize: isMobile ? '3rem' : '4rem', 
+            marginBottom: '1.5rem',
+            filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))'
+          }}>
+            🌿
           </div>
-        )}
-
-        {/* Login Form */}
-        <form onSubmit={handleLogin} style={formStyles}>
-          <div style={inputGroupStyles}>
-            <label style={labelStyles}>
-              Email Address
-            </label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => handleInputChange('email', e.target.value)}
-              required
-              disabled={loading}
-              style={{
-                ...inputStyles,
-                ...(loading ? disabledInputStyles : {})
-              }}
-              placeholder="Enter your email address"
-            />
-          </div>
-
-          <div style={inputGroupStyles}>
-            <div style={labelContainerStyles}>
-              <label style={labelStyles}>
-                Password
-              </label>
-              <Link 
-                to="/forgot-password" 
-                style={forgotPasswordStyles}
-              >
-                Forgot password?
-              </Link>
-            </div>
-            <input
-              type="password"
-              value={formData.password}
-              onChange={(e) => handleInputChange('password', e.target.value)}
-              required
-              disabled={loading}
-              style={{
-                ...inputStyles,
-                ...(loading ? disabledInputStyles : {})
-              }}
-              placeholder="Enter your password"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              ...submitButtonStyles,
-              ...(loading ? disabledButtonStyles : {})
-            }}
-          >
-            {loading ? (
-              <div style={loadingContainerStyles}>
-                <div style={spinnerStyles}></div>
-                Signing In...
+          <h1 style={{ 
+            fontSize: isMobile ? '2rem' : '3rem', 
+            fontWeight: '700', 
+            marginBottom: '1.5rem',
+            lineHeight: 1.1
+          }}>
+            Welcome Back to HerbAI
+          </h1>
+          <p style={{ 
+            fontSize: isMobile ? '1rem' : '1.25rem', 
+            marginBottom: '2.5rem',
+            opacity: 0.9,
+            lineHeight: 1.6
+          }}>
+            Continue your herbal wellness journey with personalized AI-powered recommendations.
+          </p>
+          
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: '1.5rem',
+            textAlign: 'left'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
+              <div style={{
+                background: 'rgba(255,255,255,0.2)',
+                borderRadius: '50%',
+                width: '40px',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                🔒
               </div>
-            ) : (
-              'Sign In'
-            )}
-          </button>
-        </form>
+              <div>
+                <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.1rem' }}>Secure Access</h3>
+                <p style={{ margin: 0, opacity: 0.9, fontSize: '0.95rem' }}>
+                  Your health data is protected with enterprise-grade security
+                </p>
+              </div>
+            </div>
 
-        {/* Sign Up Link */}
-        <div style={signupContainerStyles}>
-          <span style={signupTextStyles}>
-            Don't have an account?{' '}
-          </span>
-          <Link 
-            to="/register" 
-            style={signupLinkStyles}
-          >
-            Create account
-          </Link>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
+              <div style={{
+                background: 'rgba(255,255,255,0.2)',
+                borderRadius: '50%',
+                width: '40px',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                📊
+              </div>
+              <div>
+                <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.1rem' }}>Personalized Insights</h3>
+                <p style={{ margin: 0, opacity: 0.9, fontSize: '0.95rem' }}>
+                  Access your tailored herbal recommendations and progress tracking
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
+              <div style={{
+                background: 'rgba(255,255,255,0.2)',
+                borderRadius: '50%',
+                width: '40px',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                🌱
+              </div>
+              <div>
+                <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.1rem' }}>Continuous Learning</h3>
+                <p style={{ margin: 0, opacity: 0.9, fontSize: '0.95rem' }}>
+                  Your recommendations improve as we learn more about your wellness journey
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Side - Login Form */}
+      <div style={{
+        flex: 1,
+        padding: isMobile ? '2rem 1.5rem' : '3rem',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        background: 'white',
+        overflowY: 'auto'
+      }}>
+        <div style={{ maxWidth: '400px', margin: '0 auto', width: '100%' }}>
+          <div style={{ marginBottom: '2rem' }}>
+            <h1 style={{ 
+              fontSize: '2rem', 
+              fontWeight: '700', 
+              color: '#2E7D32',
+              marginBottom: '0.5rem'
+            }}>
+              Sign In
+            </h1>
+            <p style={{ 
+              color: '#666666', 
+              fontSize: '1rem',
+              margin: 0
+            }}>
+              Welcome back! Please sign in to your account.
+            </p>
+          </div>
+
+          {error && (
+            <div style={errorStyles}>
+              <div style={errorIconStyles}>⚠️</div>
+              <div style={errorTextStyles}>{error}</div>
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} style={formStyles}>
+            <div style={inputGroupStyles}>
+              <label style={labelStyles}>
+                Email Address
+              </label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleInputChange('email', e.target.value)}
+                required
+                disabled={loading}
+                style={{
+                  ...inputStyles,
+                  ...(loading ? disabledInputStyles : {})
+                }}
+                placeholder="Enter your email address"
+              />
+            </div>
+
+            <div style={inputGroupStyles}>
+              <div style={labelContainerStyles}>
+                <label style={labelStyles}>
+                  Password
+                </label>
+                <Link 
+                  to="/forgot-password" 
+                  style={forgotPasswordStyles}
+                >
+                  Forgot password?
+                </Link>
+              </div>
+              <input
+                type="password"
+                value={formData.password}
+                onChange={(e) => handleInputChange('password', e.target.value)}
+                required
+                disabled={loading}
+                style={{
+                  ...inputStyles,
+                  ...(loading ? disabledInputStyles : {})
+                }}
+                placeholder="Enter your password"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                ...submitButtonStyles,
+                ...(loading ? disabledButtonStyles : {})
+              }}
+            >
+              {loading ? (
+                <div style={loadingContainerStyles}>
+                  <div style={spinnerStyles}></div>
+                  Signing In...
+                </div>
+              ) : (
+                'Sign In'
+              )}
+            </button>
+          </form>
+
+          <div style={signupContainerStyles}>
+            <span style={signupTextStyles}>
+              Don't have an account?{' '}
+            </span>
+            <Link 
+              to="/register" 
+              style={signupLinkStyles}
+            >
+              Create account
+            </Link>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-// Styles - UPDATED: Removed all extra margins and padding
-const pageContainerStyles: React.CSSProperties = {
-  minHeight: '100vh',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: '#000000',
-  padding: '0',
-  margin: '0',
-  overflow: 'hidden',
-};
-
-const cardStyles: React.CSSProperties = {
-  background: '#1a1a1a',
-  borderRadius: '16px',
-  padding: '2.5rem 2rem',
-  boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
-  width: '100%',
-  maxWidth: '400px',
-  border: '1px solid #333333',
-  margin: '1rem',
-};
-
-const headerStyles: React.CSSProperties = {
-  textAlign: 'center',
-  marginBottom: '2rem',
-  padding: '0',
-};
-
-const logoStyles: React.CSSProperties = {
-  fontSize: '3rem',
-  marginBottom: '1rem',
-  display: 'block',
-  filter: 'brightness(1.2)',
-};
-
-const titleStyles: React.CSSProperties = {
-  fontSize: '1.75rem',
-  fontWeight: '700',
-  color: '#ffffff',
-  margin: '0 0 0.5rem 0',
-  lineHeight: 1.2,
-};
-
-const subtitleStyles: React.CSSProperties = {
-  fontSize: '0.9rem',
-  color: '#a0a0a0',
-  margin: '0',
-  fontWeight: '400',
-};
-
+// Updated Styles for Light Theme
 const errorStyles: React.CSSProperties = {
-  background: '#2a1a1a',
-  border: '1px solid #5c2e2e',
+  background: '#FFEBEE',
+  border: '1px solid #F44336',
   borderRadius: '12px',
   padding: '1rem',
   marginBottom: '1.5rem',
@@ -205,7 +300,7 @@ const errorIconStyles: React.CSSProperties = {
 };
 
 const errorTextStyles: React.CSSProperties = {
-  color: '#f56565',
+  color: '#C62828',
   fontSize: '0.875rem',
   lineHeight: 1.4,
   flex: 1,
@@ -228,7 +323,7 @@ const labelContainerStyles: React.CSSProperties = {
 
 const labelStyles: React.CSSProperties = {
   display: 'block',
-  color: '#e2e8f0',
+  color: '#333333',
   fontWeight: '500',
   fontSize: '0.875rem',
   marginBottom: '0.5rem',
@@ -237,24 +332,24 @@ const labelStyles: React.CSSProperties = {
 const inputStyles: React.CSSProperties = {
   width: '100%',
   padding: '0.875rem 1rem',
-  border: '2px solid #333333',
+  border: '2px solid #E0E0E0',
   borderRadius: '8px',
   fontSize: '1rem',
   transition: 'all 0.2s ease',
   outline: 'none',
   boxSizing: 'border-box',
-  background: '#2d2d2d',
-  color: '#ffffff',
+  background: 'white',
+  color: '#333333',
 };
 
 const disabledInputStyles: React.CSSProperties = {
   opacity: 0.6,
   cursor: 'not-allowed',
-  background: '#252525',
+  background: '#F5F5F5',
 };
 
 const forgotPasswordStyles: React.CSSProperties = {
-  color: '#48bb78',
+  color: '#2E7D32',
   fontSize: '0.875rem',
   fontWeight: '500',
   textDecoration: 'none',
@@ -263,7 +358,7 @@ const forgotPasswordStyles: React.CSSProperties = {
 const submitButtonStyles: React.CSSProperties = {
   width: '100%',
   padding: '1rem',
-  background: 'linear-gradient(135deg, #48bb78 0%, #38a169 100%)',
+  background: '#2E7D32',
   color: 'white',
   border: 'none',
   borderRadius: '8px',
@@ -277,6 +372,7 @@ const submitButtonStyles: React.CSSProperties = {
 const disabledButtonStyles: React.CSSProperties = {
   opacity: 0.7,
   cursor: 'not-allowed',
+  background: '#CCCCCC',
 };
 
 const loadingContainerStyles: React.CSSProperties = {
@@ -298,40 +394,19 @@ const spinnerStyles: React.CSSProperties = {
 const signupContainerStyles: React.CSSProperties = {
   textAlign: 'center',
   paddingTop: '1.5rem',
-  borderTop: '1px solid #333333',
+  borderTop: '1px solid #E0E0E0',
 };
 
 const signupTextStyles: React.CSSProperties = {
-  color: '#a0a0a0',
+  color: '#666666',
   fontSize: '0.875rem',
 };
 
 const signupLinkStyles: React.CSSProperties = {
-  color: '#48bb78',
+  color: '#2E7D32',
   fontWeight: '600',
   textDecoration: 'none',
   fontSize: '0.875rem',
 };
-
-// Add CSS animation for spinner
-const style = document.createElement('style');
-style.textContent = `
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-  
-  /* Remove any global margins and padding that might cause white space */
-  body, html {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-  }
-  
-  #root {
-    height: 100%;
-  }
-`;
-document.head.appendChild(style);
 
 export default Login;

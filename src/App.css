@@ -1,5 +1,13 @@
 /* src/App.css */
-  /* Remove all default margins and padding */
+
+/* Global CSS for full-height layout */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Remove all default margins and padding */
 *{
   margin: 0;
   padding: 0;
@@ -10,12 +18,12 @@ body, html {
   margin: 0;
   padding: 0;
   height: 100%;
-  background: #000000;
+  background: #FFFFFF;
 }
 
 #root {
   height: 100%;
-  background: #000000;
+  background: #FFFFFF;
 }
 
 /* Ensure the login page takes full height */

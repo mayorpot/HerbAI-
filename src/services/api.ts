@@ -35,16 +35,19 @@ export interface HerbalRecommendation {
 class ApiService {
   private async fetchWithErrorHandling(url: string, options: RequestInit = {}) {
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch(url, {
         headers: {
           'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }),
           ...options.headers,
         },
         ...options,
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        const errorData = await response.json().catch(() => ({ message: 'API error' }));
+        throw new Error(errorData.message || `API error: ${response.status}`);
       }
 
       return await response.json();
@@ -54,42 +57,71 @@ class ApiService {
     }
   }
 
-  // AI Chat endpoints
-  async analyzeSymptoms(message: string, userId?: string): Promise<AIChatResponse> {
-    return this.fetchWithErrorHandling(`${API_BASE_URL}/ai/analyze-symptoms`, {
+  // AI endpoints - UPDATED to match new backend
+  async getRecommendations(symptoms: string, maxResults?: number): Promise<{ recommendations: any[] }> {
+    return this.fetchWithErrorHandling(`${API_BASE_URL}/ai/recommend`, {
       method: 'POST',
-      body: JSON.stringify({ message, userId }),
+      body: JSON.stringify({ symptoms, maxResults }),
     });
   }
 
-  async getHerbalRecommendations(symptoms: string): Promise<{ recommendations: HerbalRecommendation }> {
-    return this.fetchWithErrorHandling(`${API_BASE_URL}/ai/herbal-recommendations`, {
+  async askQuestion(question: string): Promise<{ answer: string }> {
+    return this.fetchWithErrorHandling(`${API_BASE_URL}/ai/ask`, {
       method: 'POST',
-      body: JSON.stringify({ symptoms }),
+      body: JSON.stringify({ question }),
     });
   }
 
-  async clearConversation(userId: string) {
-    return this.fetchWithErrorHandling(`${API_BASE_URL}/ai/conversation/${userId}`, {
-      method: 'DELETE',
-    });
-  }
-
-  // Herb database endpoints
-  async getAllHerbs(): Promise<{ herbs: Herb[] }> {
+  // Herb endpoints - UPDATED to match new backend
+  async getAllHerbs(): Promise<{ herbs: any[] }> {
     return this.fetchWithErrorHandling(`${API_BASE_URL}/herbs`);
   }
 
-  async searchHerbs(query: string): Promise<{ results: Herb[] }> {
-    return this.fetchWithErrorHandling(`${API_BASE_URL}/herbs/search?q=${encodeURIComponent(query)}`);
+  async searchHerbs(query: string): Promise<{ herbs: any[] }> {
+    return this.fetchWithErrorHandling(`${API_BASE_URL}/herbs?search=${encodeURIComponent(query)}`);
   }
 
-  async getHerbById(id: number): Promise<{ herb: Herb }> {
+  async getHerbById(id: string): Promise<{ herb: any }> {
     return this.fetchWithErrorHandling(`${API_BASE_URL}/herbs/${id}`);
   }
 
-  async getHerbsBySymptom(symptom: string): Promise<{ herbs: Herb[] }> {
-    return this.fetchWithErrorHandling(`${API_BASE_URL}/herbs/symptom/${encodeURIComponent(symptom)}`);
+  async getHerbsByCondition(condition: string): Promise<{ herbs: any[] }> {
+    return this.fetchWithErrorHandling(`${API_BASE_URL}/herbs/search/condition?condition=${encodeURIComponent(condition)}`);
+  }
+
+  // Conditions endpoints - NEW
+  async getAllConditions(): Promise<{ conditions: any[] }> {
+    return this.fetchWithErrorHandling(`${API_BASE_URL}/conditions`);
+  }
+
+  async searchConditions(query: string): Promise<{ conditions: any[] }> {
+    return this.fetchWithErrorHandling(`${API_BASE_URL}/conditions?search=${encodeURIComponent(query)}`);
+  }
+
+  async getConditionsBySymptom(symptom: string): Promise<{ conditions: any[] }> {
+    return this.fetchWithErrorHandling(`${API_BASE_URL}/conditions/search/symptom?symptom=${encodeURIComponent(symptom)}`);
+  }
+
+  // Feedback endpoints - NEW
+  async submitFeedback(feedback: {
+    herbId?: string;
+    rating: number;
+    comment?: string;
+    type?: string;
+  }): Promise<{ feedback: any }> {
+    return this.fetchWithErrorHandling(`${API_BASE_URL}/feedback`, {
+      method: 'POST',
+      body: JSON.stringify(feedback),
+    });
+  }
+
+  async getHerbFeedback(herbId: string): Promise<{ feedback: any[] }> {
+    return this.fetchWithErrorHandling(`${API_BASE_URL}/feedback/herb/${herbId}`);
+  }
+
+  // Health check
+  async healthCheck(): Promise<{ status: string }> {
+    return this.fetchWithErrorHandling(`${API_BASE_URL}/health`);
   }
 }
 
