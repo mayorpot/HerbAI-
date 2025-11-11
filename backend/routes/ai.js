@@ -1,133 +1,150 @@
 // backend/routes/ai.js
 const express = require('express');
-const router = express.Router();
+const Herb = require('../models/Herb');
+const { auth } = require('../middleware/auth');
 const openaiService = require('../services/openaiService');
+const ragService = require('../services/ragService');
 
-// Store conversation history
-const conversationHistory = new Map();
+const router = express.Router();
 
-// Analyze symptoms and provide herbal recommendations
-router.post('/analyze-symptoms', async (req, res) => {
+// Get herb recommendations based on symptoms
+router.post('/recommend', auth, async (req, res) => {
   try {
-    const { message, userId = 'default' } = req.body;
+    const { symptoms, maxResults = 5 } = req.body;
 
-    console.log('📝 Received message:', message);
-
-    if (!message || message.trim().length === 0) {
-      return res.status(400).json({ 
-        error: 'Message is required',
-        details: 'Please provide a message describing your symptoms'
-      });
-    }
-
-    // Basic validation
-    if (message.length > 1000) {
+    if (!symptoms || !symptoms.trim()) {
       return res.status(400).json({
-        error: 'Message too long',
-        details: 'Please keep your message under 1000 characters'
+        error: 'Symptoms required',
+        message: 'Please describe your symptoms'
       });
     }
 
-    // Get user's conversation history
-    if (!conversationHistory.has(userId)) {
-      conversationHistory.set(userId, []);
-    }
-    const userHistory = conversationHistory.get(userId);
+    console.log('🤖 AI Recommendation request:', symptoms);
 
-    // Add user message to history
-    userHistory.push({ role: 'user', content: message });
+    // Use RAG service to get relevant herbs based on symptoms
+    const relevantHerbs = await ragService.findRelevantHerbs(symptoms, maxResults);
 
-    console.log('🔄 Processing with OpenAI...');
-    
-    // Get AI response with timeout
-    const aiResponse = await Promise.race([
-      openaiService.analyzeSymptoms(message, userHistory),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout')), 30000)
-      )
-    ]);
+    // Get context for AI
+    const context = await ragService.getRelevantContext(symptoms);
 
-    // Add AI response to history
-    userHistory.push({ role: 'assistant', content: aiResponse });
+    // Generate AI response
+    const aiResponse = await openaiService.generateResponse(
+      `User symptoms: ${symptoms}. Suggest herbal remedies.`,
+      context,
+      'symptom_analysis'
+    );
 
-    // Keep only last 10 messages
-    if (userHistory.length > 10) {
-      conversationHistory.set(userId, userHistory.slice(-10));
-    }
-
-    console.log('✅ Successfully generated response');
-    
     res.json({
-      response: aiResponse,
-      messageId: Date.now().toString(),
+      symptoms,
+      recommendations: relevantHerbs,
+      aiAdvice: aiResponse.answer,
+      sources: aiResponse.sources,
+      confidence: aiResponse.confidence,
+      source: aiResponse.model === 'database_search' ? 'knowledge_base' : 'ai_enhanced',
+      count: relevantHerbs.length,
       timestamp: new Date().toISOString()
     });
 
   } catch (error) {
-    console.error('💥 Error in analyze-symptoms:', error);
+    console.error('🚨 Recommendation error:', error);
     
-    let errorMessage = 'Failed to analyze symptoms';
-    let statusCode = 500;
+    // Fallback to basic search if AI fails
+    try {
+      const fallbackHerbs = await Herb.find({
+        isActive: true,
+        $or: [
+          { conditions: { $regex: req.body.symptoms, $options: 'i' } },
+          { benefits: { $regex: req.body.symptoms, $options: 'i' } }
+        ]
+      }).limit(5).select('name scientific description benefits conditions imageUrl');
 
-    if (error.message.includes('timeout')) {
-      errorMessage = 'Request timeout - please try again';
-      statusCode = 408;
-    } else if (error.message.includes('API key')) {
-      errorMessage = 'Service configuration error';
-      statusCode = 503;
+      res.json({
+        symptoms: req.body.symptoms,
+        recommendations: fallbackHerbs,
+        aiAdvice: "I found these herbs that might help with your symptoms. For more detailed advice, please try again later.",
+        source: 'fallback_search',
+        count: fallbackHerbs.length,
+        timestamp: new Date().toISOString()
+      });
+    } catch (fallbackError) {
+      res.status(500).json({
+        error: 'Recommendation service unavailable',
+        message: 'Unable to generate herb recommendations at this time'
+      });
+    }
+  }
+});
+
+// Ask AI a free-form question
+router.post('/ask', auth, async (req, res) => {
+  try {
+    const { question, context = 'general' } = req.body;
+
+    if (!question || !question.trim()) {
+      return res.status(400).json({
+        error: 'Question required',
+        message: 'Please provide a question'
+      });
     }
 
-    res.status(statusCode).json({ 
-      error: errorMessage,
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
-      suggestion: 'Please try again in a few moments'
+    console.log('🤖 AI Question:', question);
+
+    // Get relevant context from knowledge base
+    const relevantContext = await ragService.getRelevantContext(question);
+    
+    // Generate AI response using OpenAI service
+    const aiResponse = await openaiService.generateResponse(question, relevantContext, context);
+
+    console.log('✅ AI Response generated successfully');
+
+    res.json({
+      question,
+      answer: aiResponse.answer,
+      sources: aiResponse.sources,
+      confidence: aiResponse.confidence,
+      model: aiResponse.model,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('🚨 AI ask error:', error);
+    
+    // Fallback response
+    res.json({
+      question: req.body.question,
+      answer: "I'm currently experiencing technical difficulties. Please try browsing our herb database directly or try again in a few moments.",
+      sources: [],
+      confidence: 0.1,
+      model: 'fallback',
+      timestamp: new Date().toISOString()
     });
   }
 });
 
-// Test endpoint to check OpenAI connection
-router.get('/test', async (req, res) => {
+// Test AI service status
+router.get('/status', async (req, res) => {
   try {
-    const testResponse = await openaiService.analyzeSymptoms('Hello, are you working?');
-    res.json({ 
-      status: 'success', 
-      message: 'OpenAI connection is working',
-      response: testResponse.substring(0, 100) + '...'
+    const openAIAvailable = await openaiService.isAvailable();
+    const ragStats = ragService.getStats();
+    
+    res.json({
+      openai: {
+        available: openAIAvailable,
+        hasApiKey: !!process.env.OPENAI_API_KEY
+      },
+      rag: ragStats,
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: 'OpenAI connection failed',
+    res.json({
+      openai: {
+        available: false,
+        hasApiKey: !!process.env.OPENAI_API_KEY
+      },
+      rag: { initialized: false },
       error: error.message
     });
   }
 });
-
-// Other routes remain the same...
-router.post('/herbal-recommendations', async (req, res) => {
-  try {
-    const { symptoms } = req.body;
-
-    if (!symptoms) {
-      return res.status(400).json({ error: 'Symptoms are required' });
-    }
-
-    const recommendations = await openaiService.getHerbalRecommendation(symptoms);
-
-    res.json({
-      recommendations,
-      symptoms
-    });
-
-  } catch (error) {
-    console.error('Error in herbal-recommendations:', error);
-    res.status(500).json({ 
-      error: 'Failed to get herbal recommendations',
-      message: error.message 
-    });
-  }
-});
-
-// ... rest of the routes
 
 module.exports = router;

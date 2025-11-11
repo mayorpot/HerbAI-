@@ -1,50 +1,71 @@
-// backend/middleware/auth.js
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-const protect = async (req, res, next) => {
+const auth = async (req, res, next) => {
   try {
-    let token;
-
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
-    }
-
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
     if (!token) {
       return res.status(401).json({
-        error: 'Not authorized',
-        message: 'Please log in to access this resource'
+        error: 'Access denied',
+        message: 'No authentication token provided'
       });
     }
 
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'alba-secret-key');
-    
-    // Get user from token
-    const user = await User.findById(decoded.id).select('+password');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id).select('-password');
     
     if (!user) {
       return res.status(401).json({
-        error: 'Not authorized',
-        message: 'User no longer exists'
+        error: 'Invalid token',
+        message: 'User not found'
       });
     }
 
     req.user = user;
     next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
-    res.status(401).json({
-      error: 'Not authorized',
-      message: 'Invalid token'
+    console.error('🔐 Auth middleware error:', error.message);
+    
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        error: 'Invalid token',
+        message: 'Please log in again'
+      });
+    }
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        error: 'Token expired',
+        message: 'Please log in again'
+      });
+    }
+
+    res.status(500).json({
+      error: 'Authentication failed',
+      message: 'Unable to authenticate user'
     });
   }
 };
 
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'alba-secret-key', {
-    expiresIn: '30d',
-  });
+const adminAuth = async (req, res, next) => {
+  try {
+    await auth(req, res, () => {});
+    
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        error: 'Access denied',
+        message: 'Admin privileges required'
+      });
+    }
+    
+    next();
+  } catch (error) {
+    res.status(403).json({
+      error: 'Admin authorization failed',
+      message: error.message
+    });
+  }
 };
 
-module.exports = { protect, generateToken };
+module.exports = { auth, adminAuth };

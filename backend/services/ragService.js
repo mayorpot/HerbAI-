@@ -1,187 +1,163 @@
-// backend/services/ragService.js
-const herbDatabase = require('../data/herbDatabase');
+const Herb = require('../models/Herb');
 const natural = require('natural');
-const { TfIdf, PorterStemmer } = natural;
 
 class RAGService {
   constructor() {
-    this.herbDatabase = herbDatabase;
-    this.tfidf = new TfIdf();
-    this.setupSearchIndex();
+    this.tokenizer = new natural.WordTokenizer();
+    this.tfidf = new natural.TfIdf();
+    this.herbKnowledgeBase = [];
+    this.isInitialized = false;
   }
 
-  setupSearchIndex() {
-    // Create search index from herb database
-    this.herbDatabase.forEach((herb, index) => {
-      const document = this.createDocumentText(herb);
-      this.tfidf.addDocument(document);
-    });
+  async initialize() {
+    if (this.isInitialized) return;
+
+    try {
+      console.log('📚 Initializing RAG knowledge base...');
+      
+      // Load all herbs into memory for semantic search
+      const herbs = await Herb.find({ isActive: true })
+        .select('name scientific description benefits conditions');
+      
+      this.herbKnowledgeBase = herbs.map(herb => ({
+        id: herb._id,
+        name: herb.name,
+        scientific: herb.scientific,
+        description: herb.description,
+        benefits: herb.benefits,
+        conditions: herb.conditions,
+        text: this.prepareTextForIndexing(herb)
+      }));
+
+      // Build TF-IDF index
+      this.herbKnowledgeBase.forEach((herb, index) => {
+        this.tfidf.addDocument(herb.text);
+      });
+
+      this.isInitialized = true;
+      console.log(`✅ RAG knowledge base initialized with ${this.herbKnowledgeBase.length} herbs`);
+    } catch (error) {
+      console.error('🚨 RAG initialization error:', error);
+      throw error;
+    }
   }
 
-  createDocumentText(herb) {
-    return `
-      ${herb.name} ${herb.scientificName} ${herb.description}
-      ${herb.uses.join(' ')} ${herb.symptoms.join(' ')}
-      ${herb.benefits.join(' ')} ${herb.category}
-    `.toLowerCase();
+  prepareTextForIndexing(herb) {
+    return [
+      herb.name,
+      herb.scientific,
+      herb.description,
+      ...herb.benefits,
+      ...herb.conditions
+    ].join(' ').toLowerCase();
   }
 
-  searchHerbs(query, limit = 5) {
-    const scores = [];
-    const queryTerms = query.toLowerCase().split(' ');
+  async findRelevantHerbs(query, maxResults = 5) {
+    await this.initialize();
 
-    this.tfidf.tfidfs(query, (i, measure) => {
-      if (measure > 0) {
-        scores.push({ index: i, score: measure });
-      }
-    });
+    try {
+      const queryTokens = this.tokenizer.tokenize(query.toLowerCase());
+      const scores = [];
 
-    // Sort by score and get top results
-    scores.sort((a, b) => b.score - a.score);
-    
-    const results = scores.slice(0, limit).map(score => {
-      return {
-        ...this.herbDatabase[score.index],
-        relevanceScore: score.score
-      };
-    });
-
-    return results;
-  }
-
-  findHerbsBySymptoms(symptoms) {
-    const symptomText = Array.isArray(symptoms) ? symptoms.join(' ') : symptoms;
-    const relevantHerbs = this.herbDatabase.filter(herb =>
-      herb.symptoms.some(symptom => 
-        symptomText.toLowerCase().includes(symptom.toLowerCase())
-      )
-    );
-
-    // Score by number of matching symptoms
-    const scoredHerbs = relevantHerbs.map(herb => {
-      const matchingSymptoms = herb.symptoms.filter(symptom =>
-        symptomText.toLowerCase().includes(symptom.toLowerCase())
-      );
-      return {
-        ...herb,
-        matchingSymptoms,
-        matchScore: matchingSymptoms.length
-      };
-    });
-
-    // Sort by match score
-    return scoredHerbs.sort((a, b) => b.matchScore - a.matchScore);
-  }
-
-  getHerbRecommendations(symptoms, userHealthProfile = {}) {
-    const relevantHerbs = this.findHerbsBySymptoms(symptoms);
-    
-    // Filter based on user health profile (allergies, medications, etc.)
-    const filteredHerbs = this.filterHerbsForUser(relevantHerbs, userHealthProfile);
-
-    return {
-      symptoms,
-      recommendedHerbs: filteredHerbs.slice(0, 5),
-      totalMatches: filteredHerbs.length,
-      considerations: this.generateSafetyConsiderations(filteredHerbs, userHealthProfile)
-    };
-  }
-
-  filterHerbsForUser(herbs, healthProfile) {
-    const { allergies = [], medications = [], medicalHistory = [] } = healthProfile;
-
-    return herbs.filter(herb => {
-      // Check for allergies
-      if (allergies.some(allergy => 
-        herb.name.toLowerCase().includes(allergy.toLowerCase()) ||
-        herb.warnings.some(warning => 
-          warning.toLowerCase().includes(allergy.toLowerCase())
-        )
-      )) {
-        return false;
-      }
-
-      // Check for medication interactions
-      if (medications.some(medication =>
-        herb.interactions.some(interaction =>
-          interaction.toLowerCase().includes(medication.toLowerCase())
-        )
-      )) {
-        return false;
-      }
-
-      return true;
-    });
-  }
-
-  generateSafetyConsiderations(herbs, healthProfile) {
-    const considerations = [];
-
-    herbs.forEach(herb => {
-      if (herb.warnings.length > 0) {
-        considerations.push({
-          herb: herb.name,
-          warnings: herb.warnings,
-          interactions: herb.interactions.filter(interaction => 
-            healthProfile.medications?.some(med => 
-              interaction.toLowerCase().includes(med.toLowerCase())
-            )
-          )
+      // Calculate similarity scores for each herb
+      this.herbKnowledgeBase.forEach((herb, docIndex) => {
+        let score = 0;
+        
+        queryTokens.forEach(token => {
+          this.tfidf.tfidfs(token, (i, measure) => {
+            if (i === docIndex) {
+              score += measure;
+            }
+          });
         });
-      }
-    });
 
-    return considerations;
+        // Boost score for exact matches in conditions and benefits
+        const conditionMatches = herb.conditions.filter(condition => 
+          query.toLowerCase().includes(condition.toLowerCase())
+        ).length;
+
+        const benefitMatches = herb.benefits.filter(benefit =>
+          query.toLowerCase().includes(benefit.toLowerCase())
+        ).length;
+
+        score += (conditionMatches * 0.5) + (benefitMatches * 0.3);
+        scores.push({ herb, score, docIndex });
+      });
+
+      // Sort by score and get top results
+      const topResults = scores
+        .filter(item => item.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, maxResults)
+        .map(item => ({
+          id: item.herb.id,
+          name: item.herb.name,
+          scientific: item.herb.scientific,
+          description: item.herb.description.substring(0, 200) + '...',
+          benefits: item.herb.benefits.slice(0, 3),
+          conditions: item.herb.conditions,
+          relevanceScore: Math.round(item.score * 100) / 100,
+          matchType: this.getMatchType(item.herb, query)
+        }));
+
+      return topResults;
+
+    } catch (error) {
+      console.error('🚨 RAG search error:', error);
+      return [];
+    }
   }
 
-  // Enhanced search with semantic understanding
-  enhancedSearch(query, userContext = {}) {
-    const searchResults = this.searchHerbs(query);
-    const symptomResults = this.findHerbsBySymptoms(query);
+  getMatchType(herb, query) {
+    const queryLower = query.toLowerCase();
     
-    // Combine and deduplicate results
-    const allResults = [...searchResults, ...symptomResults];
-    const uniqueResults = this.deduplicateResults(allResults);
-
-    // Apply user context filtering
-    const filteredResults = this.filterHerbsForUser(uniqueResults, userContext.healthProfile || {});
-
-    return {
-      query,
-      results: filteredResults.slice(0, 6),
-      searchType: this.determineSearchType(query),
-      suggestedQuestions: this.generateFollowUpQuestions(query, filteredResults)
-    };
-  }
-
-  deduplicateResults(results) {
-    const seen = new Set();
-    return results.filter(herb => {
-      if (seen.has(herb.id)) return false;
-      seen.add(herb.id);
-      return true;
-    });
-  }
-
-  determineSearchType(query) {
-    const symptoms = ['pain', 'ache', 'fever', 'cough', 'nausea', 'stress', 'anxiety'];
-    const isSymptomSearch = symptoms.some(symptom => 
-      query.toLowerCase().includes(symptom)
+    // Check for exact condition matches
+    const conditionMatch = herb.conditions.some(condition => 
+      queryLower.includes(condition.toLowerCase())
     );
-    
-    return isSymptomSearch ? 'symptom' : 'general';
+
+    // Check for exact benefit matches
+    const benefitMatch = herb.benefits.some(benefit =>
+      queryLower.includes(benefit.toLowerCase())
+    );
+
+    if (conditionMatch) return 'condition_match';
+    if (benefitMatch) return 'benefit_match';
+    return 'semantic_match';
   }
 
-  generateFollowUpQuestions(query, results) {
-    const questions = [];
+  async getRelevantContext(query, maxContextLength = 1000) {
+    const relevantHerbs = await this.findRelevantHerbs(query, 3);
     
-    if (results.length > 0) {
-      questions.push(`Would you like more details about ${results[0].name}?`);
-      questions.push('Are you experiencing any other symptoms?');
-      questions.push('How long have you had these symptoms?');
+    if (relevantHerbs.length === 0) {
+      return 'No specific herb information found in knowledge base.';
     }
 
-    return questions;
+    let context = 'Relevant herbs from knowledge base:\n\n';
+    
+    relevantHerbs.forEach(herb => {
+      context += `Herb: ${herb.name}`;
+      if (herb.scientific) context += ` (${herb.scientific})`;
+      context += `\nConditions: ${herb.conditions.join(', ')}`;
+      context += `\nBenefits: ${herb.benefits.join(', ')}`;
+      context += `\nDescription: ${herb.description}\n\n`;
+    });
+
+    // Trim context to avoid token limits
+    if (context.length > maxContextLength) {
+      context = context.substring(0, maxContextLength) + '...';
+    }
+
+    return context;
+  }
+
+  // Get knowledge base statistics
+  getStats() {
+    return {
+      totalHerbs: this.herbKnowledgeBase.length,
+      initialized: this.isInitialized,
+      lastInitialized: this.isInitialized ? new Date().toISOString() : null
+    };
   }
 }
 

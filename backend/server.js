@@ -7,6 +7,27 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Enhanced CORS configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = process.env.ALLOWED_ORIGINS 
+      ? process.env.ALLOWED_ORIGINS.split(',') 
+      : ['http://localhost:3000', 'http://localhost:5173'];
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('🚫 CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
 // Connect to database with better error handling
 const connectDB = async () => {
   try {
@@ -14,8 +35,6 @@ const connectDB = async () => {
     
     // MongoDB connection options
     const options = {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
       serverSelectionTimeoutMS: 5000, // Timeout after 5 seconds
       socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
     };
@@ -71,7 +90,7 @@ const connectDB = async () => {
     console.log('   1. Check MONGODB_URI in .env file');
     console.log('   2. URL-encode special characters in password');
     console.log('   3. Reset MongoDB Atlas password if needed');
-    console.log('   4. Use local MongoDB: mongodb://localhost:27017/alba');
+    console.log('   4. Use local MongoDB: mongodb://localhost:27017/herbai');
     
     process.exit(1);
   }
@@ -80,8 +99,8 @@ const connectDB = async () => {
 // Initialize database connection
 connectDB();
 
-// Middleware
-app.use(cors());
+// Middleware - UPDATED CORS
+app.use(cors(corsOptions));
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -91,17 +110,19 @@ app.use((req, res, next) => {
   next();
 });
 
-// Import routes
+// Import routes - ADDED CONDITIONS ROUTES
 const authRoutes = require('./routes/auth');
 const aiRoutes = require('./routes/ai');
 const herbRoutes = require('./routes/herbs');
+const conditionRoutes = require('./routes/conditions'); // NEW
 const feedbackRoutes = require('./routes/feedback');
 const adminRoutes = require('./routes/admin');
 
-// Use routes
+// Use routes - ADDED CONDITIONS ROUTES
 app.use('/api/auth', authRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/herbs', herbRoutes);
+app.use('/api/conditions', conditionRoutes); // NEW
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/admin', adminRoutes);
 
@@ -119,11 +140,14 @@ app.get('/api/health', async (req, res) => {
 
   res.json({ 
     status: dbStatus === 1 ? 'OK' : 'WARNING',
-    message: 'ALBA Backend is running',
+    message: 'HerbAI Backend is running', // UPDATED NAME
     database: statusMessages[dbStatus] || 'unknown',
     timestamp: new Date().toISOString(),
     version: '1.0.0',
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    cors: {
+      allowedOrigins: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['localhost']
+    }
   });
 });
 
@@ -149,7 +173,7 @@ app.get('/api/db-status', async (req, res) => {
   }
 });
 
-// 404 handler
+// 404 handler - UPDATED AVAILABLE ENDPOINTS
 app.use('*', (req, res) => {
   res.status(404).json({
     error: 'Route not found',
@@ -160,6 +184,7 @@ app.use('*', (req, res) => {
       '/api/auth/*',
       '/api/ai/*',
       '/api/herbs/*',
+      '/api/conditions/*', // NEW
       '/api/feedback/*',
       '/api/admin/*'
     ]
@@ -169,6 +194,14 @@ app.use('*', (req, res) => {
 // Error handler
 app.use((error, req, res, next) => {
   console.error('🚨 Unhandled error:', error);
+  
+  // CORS errors
+  if (error.message.includes('CORS')) {
+    return res.status(403).json({
+      error: 'CORS policy violation',
+      message: 'Origin not allowed'
+    });
+  }
   
   // MongoDB specific errors
   if (error.name === 'MongoError') {
@@ -201,14 +234,15 @@ app.use((error, req, res, next) => {
   });
 });
 
-// Start server
+// Start server - UPDATED LOG MESSAGES
 const server = app.listen(PORT, () => {
-  console.log(`\n🚀 ALBA Backend Server Started`);
+  console.log(`\n🚀 HerbAI Backend Server Started`); // UPDATED NAME
   console.log(`📍 Port: ${PORT}`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📊 Database: ${process.env.MONGODB_URI ? 'MongoDB Atlas' : 'Local MongoDB'}`);
   console.log(`🔐 Authentication: Enabled`);
-  console.log(`🤖 RAG System: Ready`);
+  console.log(`🌍 CORS: ${process.env.ALLOWED_ORIGINS ? 'Custom origins' : 'Localhost only'}`);
+  console.log(`🤖 AI Services: ${process.env.OPENAI_API_KEY ? 'Ready' : 'Disabled'}`);
   console.log(`💬 Feedback System: Active`);
   console.log(`⏰ Server time: ${new Date().toISOString()}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);

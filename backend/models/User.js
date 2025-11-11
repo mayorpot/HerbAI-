@@ -1,21 +1,19 @@
-// backend/models/User.js
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const validator = require('validator');
 
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, 'Name is required'],
     trim: true,
-    maxlength: [50, 'Name cannot be more than 50 characters']
+    maxlength: [50, 'Name cannot exceed 50 characters']
   },
   email: {
     type: String,
     required: [true, 'Email is required'],
-    unique: true,
     lowercase: true,
-    validate: [validator.isEmail, 'Please provide a valid email']
+    trim: true,
+    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email']
   },
   password: {
     type: String,
@@ -23,54 +21,56 @@ const userSchema = new mongoose.Schema({
     minlength: [6, 'Password must be at least 6 characters'],
     select: false
   },
-  healthProfile: {
-    allergies: [String],
-    medicalHistory: [String],
-    medications: [String],
-    preferences: {
-      preferredLanguage: { type: String, default: 'en' },
-      measurementSystem: { type: String, default: 'metric' }
-    }
+  role: {
+    type: String,
+    enum: ['user', 'admin', 'doctor'],
+    default: 'user'
   },
-  conversationHistory: [{
-    message: String,
-    response: String,
-    timestamp: { type: Date, default: Date.now },
-    symptoms: [String],
-    remediesSuggested: [String]
-  }],
-  feedback: [{
-    conversationId: mongoose.Schema.Types.ObjectId,
-    rating: { type: Number, min: 1, max: 5 },
-    comment: String,
-    timestamp: { type: Date, default: Date.now }
-  }],
-  createdAt: {
-    type: Date,
-    default: Date.now
+  isActive: {
+    type: Boolean,
+    default: true
   },
   lastLogin: {
-    type: Date,
-    default: Date.now
+    type: Date
+  }
+}, {
+  timestamps: true,
+  toJSON: {
+    transform: function(doc, ret) {
+      ret.id = ret._id;
+      delete ret._id;
+      delete ret.__v;
+      delete ret.password;
+      return ret;
+    }
   }
 });
 
-// Encrypt password before saving
+// Index for better query performance
+userSchema.index({ email: 1 });
+userSchema.index({ role: 1 });
+
+// Pre-save middleware to hash password
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
-  this.password = await bcrypt.hash(this.password, 12);
-  next();
+  
+  try {
+    const salt = await bcrypt.genSalt(12);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
 
-// Compare password method
-userSchema.methods.correctPassword = async function(candidatePassword, userPassword) {
-  return await bcrypt.compare(candidatePassword, userPassword);
+// Instance method to check password
+userSchema.methods.comparePassword = async function(candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Update last login
-userSchema.methods.updateLastLogin = function() {
-  this.lastLogin = new Date();
-  return this.save();
+// Static method to find active users
+userSchema.statics.findActive = function() {
+  return this.find({ isActive: true });
 };
 
 module.exports = mongoose.model('User', userSchema);

@@ -1,131 +1,116 @@
-// backend/services/openaiService.js
-const OpenAI = require('openai');
+const axios = require('axios');
 
 class OpenAIService {
   constructor() {
-    // Check if API key is available
-    if (!process.env.OPENAI_API_KEY) {
-      console.error('❌ OPENAI_API_KEY is missing from environment variables');
-      throw new Error('OpenAI API key not configured');
-    }
-
-    console.log('🔑 OpenAI API Key found, initializing...');
-    
-    this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+    this.apiKey = process.env.OPENAI_API_KEY;
+    this.baseURL = 'https://api.openai.com/v1';
+    this.client = axios.create({
+      baseURL: this.baseURL,
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 60000,
+      httpsAgent: new (require('https').Agent)({
+    keepAlive: true,
+    timeout: 60000
+      })
     });
-    
-    this.herbalKnowledgeBase = this.getHerbalKnowledgeBase();
-    console.log('✅ OpenAI service initialized successfully');
   }
 
-  getHerbalKnowledgeBase() {
-    return `
-    HERBAL MEDICINE KNOWLEDGE BASE:
-
-    [Keep the same content as before...]
-    `;
-  }
-
-  async analyzeSymptoms(userMessage, conversationHistory = []) {
+  async generateResponse(question, context, type = 'general') {
     try {
-      console.log('🤖 Analyzing symptoms:', userMessage.substring(0, 100) + '...');
-
-      const systemPrompt = `
-      You are ALBA, an AI herbal medicine assistant. You provide natural, herbal recommendations based on traditional knowledge.
-
-      CRITICAL RULES:
-      1. NEVER diagnose medical conditions - always recommend consulting healthcare providers
-      2. Focus on herbal remedies and lifestyle suggestions
-      3. Always include safety information
-      4. Be empathetic and clear
-
-      HERBAL KNOWLEDGE BASE:
-      ${this.herbalKnowledgeBase}
-
-      USER'S MESSAGE: "${userMessage}"
-
-      Provide helpful, safe herbal advice.
-      `;
-
-      console.log('📤 Sending request to OpenAI...');
-      
-      const completion = await this.openai.chat.completions.create({
-        model: "gpt-3.5-turbo", // Using 3.5-turbo for testing (cheaper and more available)
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt
-          },
-          {
-            role: "user",
-            content: userMessage
-          }
-        ],
-        max_tokens: 500,
-        temperature: 0.7,
-      });
-
-      console.log('✅ Received response from OpenAI');
-      
-      return completion.choices[0].message.content;
-    } catch (error) {
-      console.error('❌ OpenAI API Error:', error);
-      
-      // More detailed error logging
-      if (error.response) {
-        console.error('OpenAI Response Error:', error.response.status, error.response.data);
-      } else if (error.request) {
-        console.error('OpenAI Request Error:', error.message);
-      } else {
-        console.error('OpenAI Setup Error:', error.message);
+      if (!this.apiKey) {
+        throw new Error('OpenAI API key not configured');
       }
 
-      // Fallback response if API fails
-      return `I apologize, but I'm having trouble accessing my knowledge base right now. 
+      let systemPrompt = '';
+      let userPrompt = '';
 
-Based on common herbal practices, here are some general recommendations:
+      switch (type) {
+        case 'herb_recommendation':
+          systemPrompt = `You are a knowledgeable herbal medicine expert. Provide accurate, evidence-based information about herbs and their uses. Always prioritize safety and recommend consulting healthcare professionals for serious conditions.`;
+          userPrompt = `Based on the following context from our herb database and the user's question, provide a helpful response:
 
-🌿 **For general wellness**: Stay hydrated, get adequate rest, and consider gentle herbs like chamomile or ginger tea.
+Context: ${context}
 
-📚 **In the meantime**, you can:
-- Browse our herbal database for specific remedies
-- Check our health library for educational articles
-- Consult with our certified herbal doctors
+User Question: ${question}
 
-⚠️ **Important**: Always consult with a healthcare provider for proper medical advice.
+Please provide:
+1. A clear, concise answer
+2. Relevant herbs from our database (if any)
+3. Safety considerations
+4. When to consult a professional`;
+          break;
 
-Please try again in a few moments, or describe your symptoms and I'll do my best to help with basic herbal knowledge.`;
+        case 'general':
+        default:
+          systemPrompt = `You are HerbAI, a friendly and knowledgeable assistant specializing in herbal medicine. You provide accurate, helpful information while emphasizing safety and professional consultation for medical conditions.`;
+          userPrompt = `Question: ${question}
+
+${context ? `Relevant context: ${context}` : ''}
+
+Please provide a helpful, accurate response about herbal medicine.`;
+      }
+
+      const response = await this.client.post('/chat/completions', {
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        max_tokens: 1000,
+        temperature: 0.7,
+        top_p: 0.9
+      });
+
+      const answer = response.data.choices[0].message.content;
+
+      return {
+        answer,
+        sources: this.extractSources(context),
+        confidence: 0.9, // Placeholder for confidence scoring
+        model: response.data.model,
+        usage: response.data.usage
+      };
+
+    } catch (error) {
+      console.error('🚨 OpenAI API error:', error.response?.data || error.message);
+      
+      if (error.response?.status === 401) {
+        throw new Error('OpenAI API key invalid');
+      } else if (error.response?.status === 429) {
+        throw new Error('OpenAI API rate limit exceeded');
+      } else if (error.code === 'ECONNABORTED') {
+        throw new Error('OpenAI API request timeout');
+      }
+      
+      throw new Error(`OpenAI API error: ${error.message}`);
     }
   }
 
-  async getHerbalRecommendation(symptoms) {
+  extractSources(context) {
+    // Simple source extraction - in production, this would be more sophisticated
+    const sources = [];
+    if (context && context.includes('Herb:')) {
+      const herbMatches = context.match(/Herb: ([^\n]+)/g);
+      if (herbMatches) {
+        sources.push(...herbMatches.map(match => match.replace('Herb: ', '')));
+      }
+    }
+    return sources.slice(0, 3); // Limit to 3 sources
+  }
+
+  // Check if service is available
+  async isAvailable() {
     try {
-      const prompt = `
-      Symptoms: "${symptoms}"
-      Provide simple herbal advice in plain text.
-      `;
-
-      const completion = await this.openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [
-          {
-            role: "system",
-            content: "Provide simple herbal advice."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        max_tokens: 300,
-        temperature: 0.3,
-      });
-
-      return completion.choices[0].message.content;
+      if (!this.apiKey) return false;
+      
+      // Simple check by making a small request
+      await this.client.get('/models', { timeout: 5000 });
+      return true;
     } catch (error) {
-      console.error('OpenAI Recommendation Error:', error);
-      return "I'm currently unable to provide specific recommendations. Please try our herbal database or consult with a healthcare provider.";
+      return false;
     }
   }
 }

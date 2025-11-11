@@ -1,199 +1,278 @@
-// backend/routes/feedback.js
 const express = require('express');
 const Feedback = require('../models/Feedback');
-const { protect } = require('../middleware/auth');
+const Herb = require('../models/Herb');
+const { auth, adminAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Submit feedback
-router.post('/submit', protect, async (req, res) => {
-  try {
-    const {
-      conversationId,
-      userMessage,
-      aiResponse,
-      rating,
-      helpful,
-      comments,
-      symptoms,
-      remediesSuggested,
-      improvementsSuggested
-    } = req.body;
+// Simple validation middleware (temporary fix)
+const validateFeedback = (req, res, next) => {
+  const { rating, comment, herbId } = req.body;
+  
+  // Basic validation
+  if (!rating || rating < 1 || rating > 5) {
+    return res.status(400).json({
+      error: 'Invalid rating',
+      message: 'Rating must be between 1 and 5'
+    });
+  }
+  
+  if (comment && comment.length > 1000) {
+    return res.status(400).json({
+      error: 'Comment too long',
+      message: 'Comment must not exceed 1000 characters'
+    });
+  }
+  
+  next();
+};
 
-    const feedback = await Feedback.create({
-      user: req.user._id,
-      conversationId,
-      userMessage,
-      aiResponse,
+// Submit feedback
+router.post('/', auth, validateFeedback, async (req, res) => {
+  try {
+    const { herbId, rating, comment, type } = req.body;
+
+    // Verify herb exists if herbId is provided
+    if (herbId) {
+      const herb = await Herb.findOne({ _id: herbId, isActive: true });
+      if (!herb) {
+        return res.status(404).json({
+          error: 'Herb not found',
+          message: 'The specified herb does not exist'
+        });
+      }
+    }
+
+    const feedback = new Feedback({
+      userId: req.user._id,
+      herbId,
       rating,
-      helpful,
-      comments,
-      symptoms: symptoms || [],
-      remediesSuggested: remediesSuggested || [],
-      improvementsSuggested: improvementsSuggested || []
+      comment,
+      type: type || 'herb_feedback'
     });
 
-    // Update user's feedback array
-    await req.user.feedback.push(feedback._id);
-    await req.user.save();
+    await feedback.save();
+
+    // Populate user and herb details for response
+    await feedback.populate('userId', 'name email');
+    if (herbId) {
+      await feedback.populate('herbId', 'name scientific');
+    }
 
     res.status(201).json({
-      status: 'success',
       message: 'Feedback submitted successfully',
-      data: {
-        feedback: {
-          id: feedback._id,
-          rating: feedback.rating,
-          helpful: feedback.helpful,
-          timestamp: feedback.timestamp
-        }
-      }
+      feedback
     });
 
   } catch (error) {
-    console.error('Feedback submission error:', error);
-    res.status(400).json({
-      error: 'Failed to submit feedback',
-      message: error.message
+    console.error('🚨 Submit feedback error:', error);
+    res.status(500).json({
+      error: 'Unable to submit feedback',
+      message: 'Please try again later'
     });
   }
 });
 
-// Get user's feedback history
-router.get('/history', protect, async (req, res) => {
+// Get feedback for a specific herb
+router.get('/herb/:herbId', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const feedback = await Feedback.find({ user: req.user._id })
-      .sort({ timestamp: -1 })
+    // Verify herb exists
+    const herb = await Herb.findOne({ _id: req.params.herbId, isActive: true });
+    if (!herb) {
+      return res.status(404).json({
+        error: 'Herb not found',
+        message: 'The specified herb does not exist'
+      });
+    }
+
+    const feedback = await Feedback.find({ herbId: req.params.herbId })
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
+      .populate('userId', 'name')
       .select('-__v');
 
-    const total = await Feedback.countDocuments({ user: req.user._id });
+    const total = await Feedback.countDocuments({ herbId: req.params.herbId });
+    const totalPages = Math.ceil(total / limit);
+
+    // Get average rating
+    const ratingStats = await Feedback.getAverageRating(req.params.herbId);
 
     res.json({
-      status: 'success',
-      data: {
-        feedback,
-        pagination: {
-          page,
-          limit,
-          total,
-          pages: Math.ceil(total / limit)
-        }
+      herb: {
+        id: herb._id,
+        name: herb.name,
+        scientific: herb.scientific
+      },
+      feedback,
+      stats: ratingStats,
+      pagination: {
+        current: page,
+        total: totalPages,
+        count: feedback.length,
+        totalItems: total
       }
     });
 
   } catch (error) {
-    console.error('Get feedback history error:', error);
-    res.status(400).json({
-      error: 'Failed to get feedback history',
-      message: error.message
+    console.error('🚨 Get herb feedback error:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        error: 'Invalid herb ID',
+        message: 'Please provide a valid herb identifier'
+      });
+    }
+
+    res.status(500).json({
+      error: 'Unable to fetch feedback',
+      message: 'Please try again later'
     });
   }
 });
 
-// Get feedback statistics
-router.get('/stats', protect, async (req, res) => {
+// Get user's feedback history
+router.get('/my-feedback', auth, async (req, res) => {
   try {
-    const stats = await Feedback.aggregate([
-      { $match: { user: req.user._id } },
-      {
-        $group: {
-          _id: null,
-          totalFeedback: { $sum: 1 },
-          averageRating: { $avg: '$rating' },
-          helpfulCount: { $sum: { $cond: ['$helpful', 1, 0] } },
-          ratingDistribution: {
-            $push: '$rating'
-          }
-        }
-      }
-    ]);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
 
-    const ratingDistribution = stats[0]?.ratingDistribution?.reduce((acc, rating) => {
-      acc[rating] = (acc[rating] || 0) + 1;
-      return acc;
-    }, {}) || {};
+    const feedback = await Feedback.find({ userId: req.user._id })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('herbId', 'name scientific imageUrl')
+      .select('-__v');
+
+    const total = await Feedback.countDocuments({ userId: req.user._id });
+    const totalPages = Math.ceil(total / limit);
 
     res.json({
-      status: 'success',
-      data: {
-        stats: {
-          totalFeedback: stats[0]?.totalFeedback || 0,
-          averageRating: stats[0]?.averageRating?.toFixed(1) || 0,
-          helpfulPercentage: stats[0] ? 
-            ((stats[0].helpfulCount / stats[0].totalFeedback) * 100).toFixed(1) : 0,
-          ratingDistribution
-        }
+      feedback,
+      pagination: {
+        current: page,
+        total: totalPages,
+        count: feedback.length,
+        totalItems: total
       }
     });
 
   } catch (error) {
-    console.error('Get feedback stats error:', error);
-    res.status(400).json({
-      error: 'Failed to get feedback statistics',
-      message: error.message
+    console.error('🚨 Get user feedback error:', error);
+    res.status(500).json({
+      error: 'Unable to fetch your feedback',
+      message: 'Please try again later'
     });
   }
 });
 
-// Get overall system feedback (admin only - simplified for now)
-router.get('/system-stats', async (req, res) => {
+// Get all feedback (admin only)
+router.get('/', auth, adminAuth, async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+    const status = req.query.status || 'all';
+
+    let query = {};
+    if (status !== 'all') {
+      query.status = status;
+    }
+
+    const feedback = await Feedback.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('userId', 'name email')
+      .populate('herbId', 'name scientific')
+      .select('-__v');
+
+    const total = await Feedback.countDocuments(query);
+    const totalPages = Math.ceil(total / limit);
+
+    // Get statistics
     const stats = await Feedback.aggregate([
       {
         $group: {
-          _id: null,
-          totalFeedback: { $sum: 1 },
-          averageRating: { $avg: '$rating' },
-          helpfulCount: { $sum: { $cond: ['$helpful', 1, 0] } },
-          commonSymptoms: { $push: '$symptoms' },
-          commonRemedies: { $push: '$remediesSuggested' }
+          _id: '$status',
+          count: { $sum: 1 }
         }
       }
     ]);
 
-    // Process common symptoms and remedies
-    const allSymptoms = stats[0]?.commonSymptoms.flat() || [];
-    const allRemedies = stats[0]?.commonRemedies.flat() || [];
-
-    const symptomFrequency = allSymptoms.reduce((acc, symptom) => {
-      acc[symptom] = (acc[symptom] || 0) + 1;
-      return acc;
-    }, {});
-
-    const remedyFrequency = allRemedies.reduce((acc, remedy) => {
-      acc[remedy] = (acc[remedy] || 0) + 1;
-      return acc;
-    }, {});
-
     res.json({
-      status: 'success',
-      data: {
-        systemStats: {
-          totalFeedback: stats[0]?.totalFeedback || 0,
-          averageRating: stats[0]?.averageRating?.toFixed(1) || 0,
-          helpfulPercentage: stats[0] ? 
-            ((stats[0].helpfulCount / stats[0].totalFeedback) * 100).toFixed(1) : 0,
-          topSymptoms: Object.entries(symptomFrequency)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10),
-          topRemedies: Object.entries(remedyFrequency)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10)
-        }
-      }
+      feedback,
+      pagination: {
+        current: page,
+        total: totalPages,
+        count: feedback.length,
+        totalItems: total
+      },
+      stats: stats.reduce((acc, stat) => {
+        acc[stat._id] = stat.count;
+        return acc;
+      }, {})
     });
 
   } catch (error) {
-    console.error('Get system stats error:', error);
-    res.status(400).json({
-      error: 'Failed to get system statistics',
-      message: error.message
+    console.error('🚨 Get all feedback error:', error);
+    res.status(500).json({
+      error: 'Unable to fetch feedback',
+      message: 'Please try again later'
+    });
+  }
+});
+
+// Update feedback status (admin only)
+router.patch('/:id/status', auth, adminAuth, async (req, res) => {
+  try {
+    const { status } = req.body;
+
+    if (!['pending', 'reviewed', 'resolved'].includes(status)) {
+      return res.status(400).json({
+        error: 'Invalid status',
+        message: 'Status must be one of: pending, reviewed, resolved'
+      });
+    }
+
+    const feedback = await Feedback.findByIdAndUpdate(
+      req.params.id,
+      { status, updatedAt: new Date() },
+      { new: true }
+    )
+      .populate('userId', 'name email')
+      .populate('herbId', 'name scientific');
+
+    if (!feedback) {
+      return res.status(404).json({
+        error: 'Feedback not found',
+        message: 'The specified feedback does not exist'
+      });
+    }
+
+    res.json({
+      message: 'Feedback status updated successfully',
+      feedback
+    });
+
+  } catch (error) {
+    console.error('🚨 Update feedback status error:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        error: 'Invalid feedback ID',
+        message: 'Please provide a valid feedback identifier'
+      });
+    }
+
+    res.status(500).json({
+      error: 'Unable to update feedback status',
+      message: 'Please try again later'
     });
   }
 });
