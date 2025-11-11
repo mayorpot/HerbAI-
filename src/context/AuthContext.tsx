@@ -1,21 +1,11 @@
 // src/context/AuthContext.tsx
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
-import { apiService } from '../services/api';
 
 interface User {
   id: string;
   name: string;
   email: string;
-  role: 'user' | 'admin' | 'moderator'; // Add this line
-  healthProfile: {
-    allergies: string[];
-    medicalHistory: string[];
-    medications: string[];
-    preferences: {
-      preferredLanguage: string;
-      measurementSystem: string;
-    };
-  };
+  role: 'user' | 'admin' | 'doctor';
   lastLogin?: string;
   createdAt?: string;
 }
@@ -53,7 +43,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const storedToken = localStorage.getItem('token');
       if (storedToken) {
         try {
-          // Verify token and get user data
           const response = await fetch('http://localhost:5000/api/auth/me', {
             headers: {
               'Authorization': `Bearer ${storedToken}`,
@@ -62,9 +51,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           
           if (response.ok) {
             const data = await response.json();
-            setUser(data.data.user);
+            // FIXED: Remove .data - data is direct
+            setUser(data.user);
           } else {
-            // Token is invalid
             localStorage.removeItem('token');
             setToken(null);
           }
@@ -96,7 +85,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         throw new Error(data.message || 'Login failed');
       }
 
-      const { user: userData, token: userToken } = data.data;
+      // FIXED: Remove .data - data is direct
+      const { user: userData, token: userToken } = data;
       
       setUser(userData);
       setToken(userToken);
@@ -124,7 +114,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         throw new Error(data.message || 'Registration failed');
       }
 
-      const { user: newUser, token: userToken } = data.data;
+      // FIXED: Remove .data - data is direct
+      const { user: newUser, token: userToken } = data;
       
       setUser(newUser);
       setToken(userToken);
@@ -159,7 +150,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         throw new Error(data.message || 'Profile update failed');
       }
 
-      setUser(data.data.user);
+      // FIXED: Remove .data - data is direct
+      setUser(data.user);
       
     } catch (error) {
       console.error('Profile update error:', error);

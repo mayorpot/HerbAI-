@@ -28,6 +28,11 @@ const Header: React.FC = () => {
     setIsMobileMenuOpen(false);
   };
 
+  const handleProfileClick = () => {
+    console.log('Navigating to profile...');
+    navigate('/profile');
+  };
+
   const navItems = [
     { path: '/', label: 'Home', icon: '🏠' },
     { path: '/assistant', label: 'Assistant', icon: '🤖' },
@@ -81,7 +86,12 @@ const Header: React.FC = () => {
                 to="/profile" 
                 style={{
                   ...navLinkStyles,
-                  ...(location.pathname === '/profile' ? activeNavLinkStyles : {})
+                  ...(location.pathname === '/profile' ? activeNavLinkStyles : {}),
+                  cursor: 'pointer'
+                }}
+                onClick={(e) => {
+                  console.log('Profile link clicked');
+                  e.stopPropagation();
                 }}
               >
                 <span>👤</span>
@@ -136,7 +146,7 @@ const Header: React.FC = () => {
                 to={item.path} 
                 style={{
                   ...mobileNavLinkStyles,
-                  ...(isActive ? activeNavLinkStyles : {})
+                  ...(isActive ? activeMobileNavLinkStyles : {})
                 }}
                 onClick={() => setIsMobileMenuOpen(false)}
               >
@@ -153,7 +163,10 @@ const Header: React.FC = () => {
                 <Link 
                   to="/profile" 
                   style={mobileNavLinkStyles}
-                  onClick={() => setIsMobileMenuOpen(false)}
+                  onClick={() => {
+                    console.log('Mobile profile link clicked');
+                    setIsMobileMenuOpen(false);
+                  }}
                 >
                   <span>👤</span>
                   <span>Profile ({user.name.split(' ')[0]})</span>
@@ -192,15 +205,15 @@ const Header: React.FC = () => {
   );
 };
 
-// Styles
+// Updated Styles with Green/White Color Scheme
 const headerStyles: React.CSSProperties = {
-  background: '#000000',
-  borderBottom: '1px solid #333333',
+  background: '#FFFFFF',
+  borderBottom: '1px solid #E8F5E8',
   padding: '0.5rem 1rem',
   position: 'sticky',
   top: 0,
   zIndex: 1000,
-  boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+  boxShadow: '0 2px 10px rgba(46, 125, 50, 0.1)',
 };
 
 const navStyles: React.CSSProperties = {
@@ -217,7 +230,7 @@ const logoStyles: React.CSSProperties = {
   alignItems: 'center',
   fontSize: '1.5rem',
   fontWeight: 'bold',
-  color: '#48bb78',
+  color: '#2E7D32',
   textDecoration: 'none',
   minWidth: '100px',
 };
@@ -236,17 +249,18 @@ const navLinkStyles: React.CSSProperties = {
   alignItems: 'center',
   padding: '0.5rem 0.75rem',
   textDecoration: 'none',
-  color: '#e2e8f0',
+  color: '#666666',
   borderRadius: '8px',
   fontSize: '0.8rem',
   minWidth: '60px',
   transition: 'all 0.2s ease',
   gap: '0.25rem',
+  cursor: 'pointer',
 };
 
 const activeNavLinkStyles: React.CSSProperties = {
-  background: '#1a472a',
-  color: '#48bb78',
+  background: '#E8F5E8',
+  color: '#2E7D32',
   fontWeight: '500',
 };
 
@@ -260,8 +274,8 @@ const userSectionStyles: React.CSSProperties = {
 
 const loginButtonStyles: React.CSSProperties = {
   background: 'transparent',
-  color: '#e2e8f0',
-  border: '1px solid #48bb78',
+  color: '#2E7D32',
+  border: '1px solid #2E7D32',
   padding: '0.5rem 1rem',
   borderRadius: '6px',
   textDecoration: 'none',
@@ -271,7 +285,7 @@ const loginButtonStyles: React.CSSProperties = {
 };
 
 const registerButtonStyles: React.CSSProperties = {
-  background: '#48bb78',
+  background: '#2E7D32',
   color: 'white',
   padding: '0.5rem 1rem',
   borderRadius: '6px',
@@ -284,8 +298,8 @@ const registerButtonStyles: React.CSSProperties = {
 
 const logoutButtonStyles: React.CSSProperties = {
   background: 'transparent',
-  color: '#e2e8f0',
-  border: '1px solid #718096',
+  color: '#666666',
+  border: '1px solid #E0E0E0',
   padding: '0.5rem 1rem',
   borderRadius: '6px',
   cursor: 'pointer',
@@ -302,7 +316,7 @@ const mobileMenuButtonStyles: React.CSSProperties = {
   fontSize: '1.5rem',
   cursor: 'pointer',
   padding: '0.5rem',
-  color: '#e2e8f0',
+  color: '#2E7D32',
 };
 
 const mobileMenuStyles: React.CSSProperties = {
@@ -310,9 +324,9 @@ const mobileMenuStyles: React.CSSProperties = {
   top: '100%',
   left: 0,
   right: 0,
-  background: '#1a1a1a',
-  borderTop: '1px solid #333333',
-  boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+  background: '#FFFFFF',
+  borderTop: '1px solid #E8F5E8',
+  boxShadow: '0 4px 6px rgba(46, 125, 50, 0.1)',
   display: 'flex',
   flexDirection: 'column',
   padding: '1rem',
@@ -325,11 +339,17 @@ const mobileNavLinkStyles: React.CSSProperties = {
   gap: '0.75rem',
   padding: '0.75rem 1rem',
   textDecoration: 'none',
-  color: '#e2e8f0',
+  color: '#666666',
   borderRadius: '6px',
   fontSize: '1rem',
-  border: '1px solid #333333',
-  background: '#2d2d2d',
+  border: '1px solid #E8F5E8',
+  background: '#F8F9FA',
+};
+
+const activeMobileNavLinkStyles: React.CSSProperties = {
+  background: '#E8F5E8',
+  color: '#2E7D32',
+  fontWeight: '500',
 };
 
 const mobileAuthSectionStyles: React.CSSProperties = {
@@ -338,7 +358,7 @@ const mobileAuthSectionStyles: React.CSSProperties = {
   gap: '0.5rem',
   marginTop: '1rem',
   paddingTop: '1rem',
-  borderTop: '1px solid #333333',
+  borderTop: '1px solid #E8F5E8',
 };
 
 const mobileLogoutButtonStyles: React.CSSProperties = {
@@ -347,11 +367,11 @@ const mobileLogoutButtonStyles: React.CSSProperties = {
   gap: '0.75rem',
   padding: '0.75rem 1rem',
   textDecoration: 'none',
-  color: '#f56565',
+  color: '#C62828',
   borderRadius: '6px',
   fontSize: '1rem',
-  border: '1px solid #f56565',
-  background: 'transparent',
+  border: '1px solid #FFEBEE',
+  background: '#FFEBEE',
   cursor: 'pointer',
   textAlign: 'left' as const,
 };
@@ -366,8 +386,29 @@ const mobileRegisterButtonStyles: React.CSSProperties = {
   borderRadius: '6px',
   fontSize: '1rem',
   border: 'none',
-  background: '#48bb78',
+  background: '#2E7D32',
   justifyContent: 'center',
 };
+
+// Add responsive styles
+const style = document.createElement('style');
+style.textContent = `
+  @media (max-width: 768px) {
+    .nav-links-desktop, .user-section-desktop {
+      display: none !important;
+    }
+    
+    .mobile-menu-button {
+      display: block !important;
+    }
+  }
+  
+  @media (min-width: 769px) {
+    .mobile-menu-button {
+      display: none !important;
+    }
+  }
+`;
+document.head.appendChild(style);
 
 export default Header;

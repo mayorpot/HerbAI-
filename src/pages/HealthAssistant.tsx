@@ -1,6 +1,6 @@
 // Updated HealthAssistant.tsx with real AI integration
 import React, { useState, useRef, useEffect } from 'react';
-import { apiService, AIChatResponse } from '../services/api';
+import { apiService } from '../services/api';
 
 interface Message {
   id: string;
@@ -48,20 +48,20 @@ const HealthAssistant: React.FC = () => {
     setError(null);
 
     try {
-      // Call real AI API
-      const response: AIChatResponse = await apiService.analyzeSymptoms(inputText);
+      // Call real AI API - UPDATED METHOD
+      const response = await apiService.askQuestion(inputText);
       
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: response.response,
+        text: response.answer,
         sender: 'assistant',
         timestamp: new Date()
       };
 
       setMessages(prev => [...prev, assistantMessage]);
-    } catch (err) {
+    } catch (err: any) {
       console.error('AI API error:', err);
-      setError('Sorry, I encountered an error. Please try again.');
+      setError(err.message || 'Sorry, I encountered an error. Please try again.');
       
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -84,12 +84,12 @@ const HealthAssistant: React.FC = () => {
   };
 
   const quickQuestions = [
-    "I have headache and fatigue",
-    "Stress and trouble sleeping",
-    "Stomach bloating after meals",
-    "Seasonal allergies",
-    "Low energy throughout day",
-    "Muscle pain and inflammation"
+    "What herbs help with headaches?",
+    "Natural remedies for stress and anxiety",
+    "Herbs for better sleep",
+    "Remedies for digestive issues",
+    "Herbs for immune support",
+    "Natural solutions for inflammation"
   ];
 
   const clearConversation = () => {
@@ -231,7 +231,7 @@ const HealthAssistant: React.FC = () => {
                       animation: 'typing 1.4s infinite 0.4s'
                     }}></div>
                   </div>
-                  ALBA is thinking...
+                  HerbAI is thinking...
                 </div>
               </div>
             )}
@@ -279,7 +279,7 @@ const HealthAssistant: React.FC = () => {
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Describe your symptoms (e.g., 'I have headache and feel dizzy')"
+              placeholder="Ask about herbs, symptoms, or natural remedies (e.g., 'What herbs help with headaches?')"
               style={{
                 flex: 1,
                 padding: '1rem',
@@ -319,7 +319,7 @@ const HealthAssistant: React.FC = () => {
           marginTop: '1.5rem',
           textAlign: 'center'
         }}>
-          <strong>🤖 Powered by OpenAI GPT-4</strong>
+          <strong>🤖 Powered by AI Knowledge Base</strong>
           <p style={{ color: '#666666', margin: '0.5rem 0 0 0', fontSize: '0.875rem' }}>
             This AI assistant provides herbal recommendations based on traditional knowledge and evidence-based practices.
           </p>
